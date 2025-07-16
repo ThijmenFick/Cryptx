@@ -2,13 +2,13 @@ import base64
 import paho.mqtt.client as mqtt
 import random
 import string
+from tqdm import tqdm
 
 client = mqtt.Client()
 client.connect("broker.hivemq.com", 1883, 60)
 client.subscribe("Cryptx/Private")
 
 imagedata = ""
-
 chunk_happen = False
 
 def xor_encrypt_decrypt(input_bytes: bytes, seed: str) -> bytes:
@@ -19,6 +19,9 @@ def decompile_filedata():
     global imagedata
 
     print("Received data")
+    missing_padding = len(imagedata) % 4
+    if missing_padding != 0:
+        imagedata += "=" * (4 - missing_padding)
     encrypted = base64.b64decode(imagedata)
     print("Decoded data")
 
@@ -27,19 +30,36 @@ def decompile_filedata():
     print("Written data to an encrypted file")
 
 def read_message(client, userdata, message):
-    global chunk_happen, imagedata
-
     msg = message.payload.decode()
-    if msg == "chunk_start":
-        print("chunk_start")
-        chunk_happen = True
-    if msg == "chunk_end" and chunk_happen:
-        print("chunk_end")
-        chunk_happen = False
-        decompile_filedata()
+    if msg.startswith("up"):
+        msg = msg.removeprefix("up ")
+        global chunk_happen, imagedata
 
-    if chunk_happen and msg != "chunk_start" and msg != "chunk_end":
-        imagedata += msg
+        if msg == "chunk_start":
+            print("chunk_start")
+            chunk_happen = True
+            imagedata = ""
+        if msg == "chunk_end" and chunk_happen:
+            print("chunk_end")
+            chunk_happen = False
+            decompile_filedata()
+
+        if chunk_happen and msg != "chunk_start" and msg != "chunk_end":
+            imagedata += msg
+
+    if msg.startswith("dw "):
+        msg = msg.removeprefix("dw ")
+        print(msg)
+        with open(msg, "rb") as file:
+            file_content = file.read()
+        converted_encrypted = base64.b64encode(file_content)
+        print(f"Converted {len(file_content)} bytes to {len(converted_encrypted)} bytes with a ratio of {round(len(converted_encrypted) / len(file_content) * 100, 2)}%")
+
+        client.publish("Cryptx/Private", "dwr chunk_start")
+        chunks = [converted_encrypted[i:i + 1000] for i in range(0, len(converted_encrypted), 1000)]
+        for chunk in tqdm(chunks, total=len(chunks), desc="Processing chunks"):
+            client.publish("Cryptx/Private", "dwr " + chunk.decode("utf-8"))
+        client.publish("Cryptx/Private", "dwr chunk_end")
 
 def connect_message(client, userdata, flags, rc):
     print("Connected to Broker")
