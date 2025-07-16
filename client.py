@@ -13,10 +13,6 @@ client.connect("broker.hivemq.com", 1883, 60)
 client.subscribe("Cryptx/Private")
 
 
-
-#decrypted = xor_encrypt_decrypt(encrypted, seed)
-
-
 option = input("UP/DW > ")
 
 if option == "up":
