@@ -11,6 +11,9 @@ client.subscribe("Cryptx/Private")
 imagedata = ""
 chunk_happen = False
 
+filename = ''.join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=20))
+file_extension = ""
+
 def xor_encrypt_decrypt(input_bytes: bytes, seed: str) -> bytes:
     random.seed(seed)
     return bytes(b ^ random.randint(0, 255) for b in input_bytes)
@@ -19,23 +22,27 @@ def decompile_filedata():
     global imagedata
 
     print("Received data")
-    missing_padding = len(imagedata) % 4
-    if missing_padding != 0:
-        imagedata += "=" * (4 - missing_padding)
+
     encrypted = base64.b64decode(imagedata)
+    print(imagedata)
+    print(encrypted)
     print("Decoded data")
 
-    with open(f"{''.join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=20))}.enc", "wb") as out_file:
+    with open("database.txt", "w") as datafile:
+        datafile.write(f"F: {filename}, E: {file_extension}")
+
+    with open(f"{filename}.enc", "wb") as out_file:
         out_file.write(encrypted)
     print("Written data to an encrypted file")
 
 def read_message(client, userdata, message):
     msg = message.payload.decode()
-    if msg.startswith("up"):
+    print(msg)
+    if msg.startswith("up "):
         msg = msg.removeprefix("up ")
         global chunk_happen, imagedata
 
-        if msg == "chunk_start":
+        if msg.startswith("chunk_start "):
             print("chunk_start")
             chunk_happen = True
             imagedata = ""
@@ -44,7 +51,8 @@ def read_message(client, userdata, message):
             chunk_happen = False
             decompile_filedata()
 
-        if chunk_happen and msg != "chunk_start" and msg != "chunk_end":
+        if chunk_happen and not msg.startswith("chunk_start ") and not msg.startswith("chunk_end "):
+            print(msg)
             imagedata += msg
 
     if msg.startswith("dw "):

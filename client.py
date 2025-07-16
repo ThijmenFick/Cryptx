@@ -1,6 +1,7 @@
 import random
 import base64
 import string
+import time
 
 import paho.mqtt.client as mqtt
 from tqdm import tqdm
@@ -22,7 +23,7 @@ def decompile_filedata():
     print("Decoded data")
     decrypted = xor_encrypt_decrypt(encrypted, "seed")
     print("Decrypted data")
-    with open(f"{''.join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=20))}.jpg", "wb") as out_file: #change file type
+    with open(f"{''.join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=20))}.txt", "wb") as out_file: #change file type
         out_file.write(decrypted)
     print("Written data to an file")
 def read_message(client, userdata, message):
@@ -48,11 +49,11 @@ client.connect("broker.hivemq.com", 1883, 60)
 client.subscribe("Cryptx/Private")
 client.on_message = read_message
 
-
 option = input("UP/DW > ")
 
 if option == "up":
     filename = input("Filename > ")
+    file_extension = filename.split(".")[1]
 
     with open(filename, "rb") as file:
         file_content = file.read()
@@ -63,10 +64,13 @@ if option == "up":
     print(f"Converted {len(encrypted)} bytes to {len(converted_encrypted)} bytes with a ratio of {round(len(converted_encrypted) / len(encrypted) * 100, 2)}%")
     print(f"Total Result of {len(file_content)} bytes to {len(converted_encrypted)} bytes with a ratio of {round(len(converted_encrypted) / len(file_content) * 100, 2)}%")
 
-    client.publish("Cryptx/Private", "up chunk_start")
-    chunks = [converted_encrypted[i:i + 1000] for i in range(0, len(converted_encrypted), 1000)]
+    client.publish("Cryptx/Private", f"up chunk_start {file_extension}")
+    chunks = [converted_encrypted[i:i + 100000] for i in range(0, len(converted_encrypted), 100000)]
+    print(converted_encrypted)
     for chunk in tqdm(chunks, total=len(chunks), desc="Processing chunks"):
         client.publish("Cryptx/Private", "up " + chunk.decode("utf-8"))
+        print("up " + chunk.decode("utf-8"))
+        time.sleep(1)
     client.publish("Cryptx/Private", "up chunk_end")
 
 if option == "dw":
